@@ -1,0 +1,63 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: service-a-postgres-pvc
+  namespace: url-shortener
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: service-a-postgres
+  namespace: url-shortener
+spec:
+  selector:
+    matchLabels:
+      app: service-a-postgres
+  template:
+    metadata:
+      labels:
+        app: service-a-postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:15
+          env:
+            - name: POSTGRES_DB
+              value: service_a_db
+            - name: POSTGRES_USER
+              value: user
+            - name: POSTGRES_PASSWORD
+              value: password
+          ports:
+            - containerPort: 5432
+          volumeMounts:
+            - mountPath: /var/lib/postgresql/data
+              name: data
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: service-a-postgres-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: service-a-postgres
+  namespace: url-shortener
+spec:
+  ports:
+    - port: 5432
+  selector:
+    app: service-a-postgres

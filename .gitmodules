@@ -1,0 +1,12 @@
+[submodule "api-gateway"]
+	path = api-gateway
+	url = https://github.com/Wo0zZ1/url-shortener-api-gateway.git
+[submodule "user-service"]
+	path = user-service
+	url = https://github.com/Wo0zZ1/url-shortener-user-service.git
+[submodule "auth-service"]
+	path = auth-service
+	url = https://github.com/Wo0zZ1/url-shortener-auth-service.git
+[submodule "link-service"]
+	path = link-service
+	url = https://github.com/Wo0zZ1/url-shortener-link-service.git

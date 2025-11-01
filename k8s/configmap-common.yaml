@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: common-config
+  namespace: url-shortener
+data:
+  NODE_ENV: 'production'

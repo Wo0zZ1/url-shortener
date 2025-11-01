@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: service-b
+  namespace: url-shortener
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: service-b
+  template:
+    metadata:
+      labels:
+        app: service-b
+    spec:
+      containers:
+        - name: service-b
+          image: ghcr.io/username/service-b:latest
+          ports:
+            - containerPort: 3000
+          env:
+            - name: DATABASE_HOST
+              value: service-b-postgres
+            - name: DATABASE_PORT
+              value: '5432'
+            - name: DATABASE_USER
+              value: user
+            - name: DATABASE_PASSWORD
+              value: password
+            - name: DATABASE_NAME
+              value: service_a_db
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
