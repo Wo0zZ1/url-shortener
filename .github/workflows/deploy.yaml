@@ -49,9 +49,9 @@ jobs:
           version: "latest"
 
       # --- 5. Настройка доступа к кластеру ---
-      # Секрет KUBE_CONFIG_DATA нужно создать вручную в GitHub Secrets
       - name: Configure kubectl
         run: |
+          mkdir -p $HOME/.kube
           echo "${{ secrets.KUBE_CONFIG_DATA }}" | base64 --decode > $HOME/.kube/config
 
       # --- 6. Применение манифестов ---
