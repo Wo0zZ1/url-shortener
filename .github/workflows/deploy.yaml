@@ -8,7 +8,6 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_PREFIX: ${{ github.repository_owner }}
   KUBE_NAMESPACE: url-shortener
 
 jobs:
@@ -20,10 +19,13 @@ jobs:
       - name: Checkout repository with submodules
         uses: actions/checkout@v4
         with:
-            submodules: recursive
+          submodules: recursive
+
+      - name: Set lowercase owner
+        run: echo "IMAGE_PREFIX=${GITHUB_REPOSITORY_OWNER,,}" >> $GITHUB_ENV
 
       # --- 2. Аутентификация в GitHub Container Registry ---
-      - name: Login to GHCR
+      - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
