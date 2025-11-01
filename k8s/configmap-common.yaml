@@ -5,3 +5,37 @@ metadata:
   namespace: url-shortener
 data:
   NODE_ENV: 'production'
+  USER_SERVICE_URL: 'http://user-service:3001'
+  AUTH_SERVICE_URL: 'http://auth-service:3002'
+  LINK_SERVICE_URL: 'http://link-service:3003'
+  RABBITMQ_URL: 'amqp://guest:guest@rabbitmq:5672'
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgres-secret
+  namespace: url-shortener
+type: Opaque
+stringData:
+  POSTGRES_PASSWORD: 'qwerty123'
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: jwt-secret
+  namespace: url-shortener
+type: Opaque
+stringData:
+  JWT_ACCESS_SECRET: 'qwerty_1'
+  JWT_ACCESS_EXPIRES_IN: '5m'
+  JWT_REFRESH_SECRET: 'qwerty_2'
+  JWT_REFRESH_EXPIRES_IN: '15m'
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: api-gateway-secret
+  namespace: url-shortener
+type: Opaque
+stringData:
+  API_GATEWAY_SECRET: 'api_gateway_secret_key'

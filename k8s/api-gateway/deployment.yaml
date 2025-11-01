@@ -15,9 +15,20 @@ spec:
     spec:
       containers:
         - name: api-gateway
-          image: ghcr.io/username/api-gateway:latest
+          image: ghcr.io/wo0zz1/api-gateway:latest
           ports:
             - containerPort: 3000
+          envFrom:
+            - configMapRef:
+                name: common-config
+          env:
+            - name: PORT
+              value: '3000'
+            - name: API_GATEWAY_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: api-gateway-secret
+                  key: API_GATEWAY_SECRET
           resources:
             requests:
               cpu: 100m

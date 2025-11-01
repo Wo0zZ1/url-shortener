@@ -35,7 +35,7 @@ jobs:
       # --- 3. Сборка и пуш образов для всех сервисов ---
       - name: Build & Push Docker images
         run: |
-          services=("api-gateway" "service-a" "service-b" "service-c")
+          services=("api-gateway" "user-service" "auth-service" "link-service")
           for service in "${services[@]}"; do
             echo "🔧 Building $service..."
             docker build -t $REGISTRY/${IMAGE_PREFIX}/${service}:latest ./${service}
