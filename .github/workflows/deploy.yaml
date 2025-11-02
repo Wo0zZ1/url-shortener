@@ -39,6 +39,9 @@ jobs:
           services=("api-gateway" "user-service" "auth-service" "link-service")
           for service in "${services[@]}"; do
             echo "🔧 Building $service..."
+            cd ./${service}
+            yarn --frozen-lockfile
+            yarn test
             docker build -t $REGISTRY/${IMAGE_PREFIX}/${service}:latest ./${service}
             docker push $REGISTRY/${IMAGE_PREFIX}/${service}:latest
           done
@@ -67,6 +70,11 @@ jobs:
           kubectl apply -R -f k8s/
 
       # --- 9. Проверка статуса ---
+      - name: Wait for pods to be ready
+        run: |
+          echo "⏳ Waiting for pods to be ready..."
+          kubectl wait --for=condition=Ready pods --all -n $KUBE_NAMESPACE --timeout=180s
+
       - name: Check deployment status
         run: |
           kubectl get pods -n $KUBE_NAMESPACE
