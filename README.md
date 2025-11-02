@@ -27,26 +27,28 @@
 
 ## 📦 Сервисы
 
-| Сервис | Порт | Технологии | Описание |
-|--------|------|------------|----------|
-| **API Gateway** | 3000 | NestJS, REST | Точка входа для всех запросов |
-| **Auth Service** | 3002 | NestJS, JWT, Prisma | Аутентификация и авторизация |
-| **User Service** | 3001 | NestJS, GraphQL, Prisma | Управление пользователями |
-| **Link Service** | 3003 | NestJS, Prisma | Создание и управление короткими ссылками |
-| **RabbitMQ** | 5672, 15672 | RabbitMQ | Message broker для межсервисной коммуникации |
-| **PostgreSQL** | 5432 | PostgreSQL 16 | 3 отдельные базы данных |
+| Сервис           | Порт        | Технологии              | Описание                                     |
+| ---------------- | ----------- | ----------------------- | -------------------------------------------- |
+| **API Gateway**  | 3000        | NestJS, REST            | Точка входа для всех запросов                |
+| **Auth Service** | 3002        | NestJS, JWT, Prisma     | Аутентификация и авторизация                 |
+| **User Service** | 3001        | NestJS, GraphQL, Prisma | Управление пользователями                    |
+| **Link Service** | 3003        | NestJS, Prisma          | Создание и управление короткими ссылками     |
+| **RabbitMQ**     | 5672, 15672 | RabbitMQ                | Message broker для межсервисной коммуникации |
+| **PostgreSQL**   | 5432        | PostgreSQL 16           | 3 отдельные базы данных                      |
 
 ## 🚀 Быстрый старт
 
 ### Локальная разработка с Docker Compose
 
 1. **Клонируйте репозиторий:**
+
 ```bash
 git clone <repository-url>
 cd url-shortener-monorepo
 ```
 
 2. **Создайте .env файлы для каждого сервиса:**
+
 ```bash
 # Скопируйте .env.example файлы
 cp api-gateway/.env.example api-gateway/.env
@@ -56,11 +58,13 @@ cp link-service/.env.example link-service/.env
 ```
 
 3. **Запустите все сервисы:**
+
 ```bash
 docker-compose up -d
 ```
 
 4. **Проверьте статус:**
+
 ```bash
 docker-compose ps
 ```
@@ -76,6 +80,7 @@ docker-compose ps
 ## ☸️ Kubernetes Development
 
 ### Требования:
+
 - kubectl
 - Kubernetes кластер (Minikube, K3s, Docker Desktop Kubernetes и т.д.)
 - Ingress Controller (опционально)
@@ -83,12 +88,14 @@ docker-compose ps
 ### Развертывание:
 
 **Windows (PowerShell):**
+
 ```powershell
 cd k8s
 .\deploy.ps1
 ```
 
 **Linux/Mac (Bash):**
+
 ```bash
 cd k8s
 chmod +x deploy.sh
@@ -113,9 +120,11 @@ kubectl port-forward -n url-shortener svc/user-service 3001:3001
 ## 📋 Production Checklist
 
 Перед развертыванием в production обязательно ознакомьтесь с:
+
 - [k8s/PRODUCTION-CHECKLIST.md](k8s/PRODUCTION-CHECKLIST.md)
 
 **Критически важно:**
+
 - ⚠️ Изменить все пароли и секреты
 - ⚠️ Настроить TLS сертификаты
 - ⚠️ Настроить backup баз данных
@@ -180,6 +189,7 @@ npx prisma generate
 Каждый сервис требует следующие переменные окружения:
 
 ### Общие для всех:
+
 ```env
 NODE_ENV=production
 USER_SERVICE_URL=http://user-service:3001
@@ -190,6 +200,7 @@ API_GATEWAY_SECRET=your_secret_key
 ```
 
 ### Auth Service:
+
 ```env
 PORT=3002
 DATABASE_URL=postgresql://postgres:password@postgres-auth:5432/url-shortener_auth
@@ -200,12 +211,14 @@ JWT_REFRESH_EXPIRES_IN=15m
 ```
 
 ### User Service:
+
 ```env
 PORT=3001
 DATABASE_URL=postgresql://postgres:password@postgres-user:5432/url-shortener_user
 ```
 
 ### Link Service:
+
 ```env
 PORT=3003
 DATABASE_URL=postgresql://postgres:password@postgres-link:5432/url-shortener_link
@@ -243,6 +256,7 @@ npm run test:cov
 ## 📈 Мониторинг
 
 Рекомендуемые инструменты:
+
 - **Metrics**: Prometheus + Grafana
 - **Logs**: ELK Stack или Loki
 - **Tracing**: Jaeger

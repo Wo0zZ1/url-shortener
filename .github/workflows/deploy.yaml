@@ -42,8 +42,9 @@ jobs:
             cd ./${service}
             yarn --frozen-lockfile
             yarn test
-            docker build -t $REGISTRY/${IMAGE_PREFIX}/${service}:latest ./${service}
+            docker build -t $REGISTRY/${IMAGE_PREFIX}/${service}:latest .
             docker push $REGISTRY/${IMAGE_PREFIX}/${service}:latest
+            cd ..
           done
 
       # --- 5. Поднимаем временный Kubernetes-кластер ---
