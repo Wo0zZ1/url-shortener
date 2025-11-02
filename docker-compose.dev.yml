@@ -1,0 +1,167 @@
+services:
+  rabbitmq:
+    container_name: rabbitmq
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres-auth:
+    container_name: postgres-auth
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: qwerty123
+      POSTGRES_DB: url-shortener_auth
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres-auth-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres-user:
+    container_name: postgres-user
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: qwerty123
+      POSTGRES_DB: url-shortener_user
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres-user-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres-link:
+    container_name: postgres-link
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: qwerty123
+      POSTGRES_DB: url-shortener_link
+    ports:
+      - "5435:5432"
+    volumes:
+      - postgres-link-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api-gateway:
+    container_name: api-gateway
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./api-gateway:/app
+      - /app/node_modules
+    env_file:
+      - ./api-gateway/.env
+    environment:
+      USER_SERVICE_URL: http://user-service:3001
+      AUTH_SERVICE_URL: http://auth-service:3002
+      LINK_SERVICE_URL: http://link-service:3003
+    ports:
+      - "3000:3000"
+    depends_on:
+      user-service:
+        condition: service_started
+      auth-service:
+        condition: service_started
+      link-service:
+        condition: service_started
+
+  user-service:
+    container_name: user-service
+    build:
+      context: ./user-service
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./user-service:/app
+      - /app/node_modules
+    env_file:
+      - ./user-service/.env
+    environment:
+      DATABASE_URL: postgresql://postgres:qwerty123@postgres-user:5432/url-shortener_user
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+      USER_SERVICE_URL: http://user-service:3001
+      AUTH_SERVICE_URL: http://auth-service:3002
+      LINK_SERVICE_URL: http://link-service:3003
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres-user:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  auth-service:
+    container_name: auth-service
+    build:
+      context: ./auth-service
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./auth-service:/app
+      - /app/node_modules
+    env_file:
+      - ./auth-service/.env
+    environment:
+      DATABASE_URL: postgresql://postgres:qwerty123@postgres-auth:5432/url-shortener_auth
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+      USER_SERVICE_URL: http://user-service:3001
+      AUTH_SERVICE_URL: http://auth-service:3002
+      LINK_SERVICE_URL: http://link-service:3003
+    ports:
+      - "3002:3002"
+    depends_on:
+      postgres-auth:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  link-service:
+    container_name: link-service
+    build:
+      context: ./link-service
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./link-service:/app
+      - /app/node_modules
+    env_file:
+      - ./link-service/.env
+    environment:
+      DATABASE_URL: postgresql://postgres:qwerty123@postgres-link:5432/url-shortener_link
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+      USER_SERVICE_URL: http://user-service:3001
+      AUTH_SERVICE_URL: http://auth-service:3002
+      LINK_SERVICE_URL: http://link-service:3003
+    ports:
+      - "3003:3003"
+    depends_on:
+      postgres-link:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+volumes:
+  postgres-auth-data:
+  postgres-user-data:
+  postgres-link-data:

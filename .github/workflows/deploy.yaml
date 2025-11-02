@@ -21,10 +21,11 @@ jobs:
         with:
           submodules: recursive
 
+      # --- 2. Устанавливаем owner в нижнем регистре ---
       - name: Set lowercase owner
         run: echo "IMAGE_PREFIX=${GITHUB_REPOSITORY_OWNER,,}" >> $GITHUB_ENV
 
-      # --- 2. Аутентификация в GitHub Container Registry ---
+      # --- 3. Аутентификация в GitHub Container Registry ---
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -32,7 +33,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # --- 3. Сборка и пуш образов для всех сервисов ---
+      # --- 4. Сборка и пуш образов для всех сервисов ---
       - name: Build & Push Docker images
         run: |
           services=("api-gateway" "user-service" "auth-service" "link-service")
@@ -42,25 +43,30 @@ jobs:
             docker push $REGISTRY/${IMAGE_PREFIX}/${service}:latest
           done
 
-      # --- 4. Установка kubectl ---
+      # --- 5. Поднимаем временный Kubernetes-кластер ---
+      - name: Create Kubernetes cluster
+        uses: helm/kind-action@v1
+        with:
+          cluster_name: url-shortener-ci
+          wait: 60s
+
+      # --- 6. Установка kubectl ---
       - name: Set up kubectl
         uses: azure/setup-kubectl@v4
         with:
           version: "latest"
 
-      # --- 5. Настройка доступа к кластеру ---
-      - name: Configure kubectl
-        run: |
-          mkdir -p $HOME/.kube
-          echo "${{ secrets.KUBE_CONFIG_DATA }}" | base64 --decode > $HOME/.kube/config
+      # --- 7. Проверяем подключение ---
+      - name: Verify cluster
+        run: kubectl cluster-info
 
-      # --- 6. Применение манифестов ---
+      # --- 8. Применение манифестов ---
       - name: Apply Kubernetes manifests
         run: |
           kubectl apply -f k8s/namespace.yaml
           kubectl apply -R -f k8s/
 
-      # --- 7. Проверка статуса ---
+      # --- 9. Проверка статуса ---
       - name: Check deployment status
         run: |
           kubectl get pods -n $KUBE_NAMESPACE
