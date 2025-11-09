@@ -25,12 +25,10 @@ spec:
             - name: PORT
               value: '3002'
             - name: DATABASE_URL
-              value: 'postgresql://postgres:$(POSTGRES_PASSWORD)@postgres-auth:5432/url-shortener_auth'
-            - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: postgres-secret
-                  key: POSTGRES_PASSWORD
+                  key: AUTH_DATABASE_URL
             - name: JWT_ACCESS_SECRET
               valueFrom:
                 secretKeyRef:
