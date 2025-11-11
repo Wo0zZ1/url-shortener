@@ -17,9 +17,10 @@ metadata:
   namespace: url-shortener
 type: Opaque
 stringData:
+  POSTGRES_PASSWORD: 'qwerty123'
   AUTH_DATABASE_URL: 'postgresql://postgres:qwerty123@postgres-auth:5432/url-shortener_auth'
-  USER_DATABASE_URL: 'postgresql://postgres:qwerty123@postgres-auth:5432/url-shortener_user'
-  LINK_DATABASE_URL: 'postgresql://postgres:qwerty123@postgres-auth:5432/url-shortener_link'
+  USER_DATABASE_URL: 'postgresql://postgres:qwerty123@postgres-user:5432/url-shortener_user'
+  LINK_DATABASE_URL: 'postgresql://postgres:qwerty123@postgres-link:5432/url-shortener_link'
 ---
 apiVersion: v1
 kind: Secret

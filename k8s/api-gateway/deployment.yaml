@@ -13,6 +13,43 @@ spec:
       labels:
         app: api-gateway
     spec:
+      initContainers:
+        - name: wait-for-auth-service
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for auth-service to be ready..."
+              until nc -z auth-service 3002; do
+                echo "auth-service is not ready yet, waiting..."
+                sleep 2
+              done
+              echo "auth-service is ready!"
+        - name: wait-for-user-service
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for user-service to be ready..."
+              until nc -z user-service 3001; do
+                echo "user-service is not ready yet, waiting..."
+                sleep 2
+              done
+              echo "user-service is ready!"
+        - name: wait-for-link-service
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for link-service to be ready..."
+              until nc -z link-service 3003; do
+                echo "link-service is not ready yet, waiting..."
+                sleep 2
+              done
+              echo "link-service is ready!"
       containers:
         - name: api-gateway
           image: ghcr.io/wo0zz1/api-gateway:latest
