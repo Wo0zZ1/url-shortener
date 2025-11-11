@@ -10,75 +10,13 @@
 4. [Миграция гостевого аккаунта](#4-миграция-гостевого-аккаунта)
 5. [Создание и редирект ссылки](#5-создание-и-редирект-ссылки)
 6. [Событийная архитектура](#6-событийная-архитектура)
-7. [CI/CD Pipeline](#8-cicd-pipeline)
-8. [Kubernetes архитектура](#9-kubernetes-архитектура)
+7. [CI/CD Pipeline](#7-cicd-pipeline)
 
 ---
 
 ## 1. Общая архитектура системы
 
-### 1.1 Компонентная диаграмма
-
-```mermaid
-graph TB
-    subgraph "External"
-        Client[🌐 Frontend Client]
-    end
-
-    subgraph "Kubernetes Cluster"
-        subgraph "Ingress Layer"
-            Ingress[🚪 Nginx Ingress Controller]
-        end
-
-        subgraph "API Layer"
-            Gateway[📡 API Gateway<br/>:3000]
-        end
-
-        subgraph "Service Layer"
-            AuthSvc[🔐 Auth Service<br/>:3002]
-            UserSvc[👤 User Service<br/>:3001]
-            LinkSvc[🔗 Link Service<br/>:3003]
-        end
-
-        subgraph "Message Broker"
-            RabbitMQ[🐰 RabbitMQ<br/>:5672]
-        end
-
-        subgraph "Data Layer"
-            AuthDB[(🗄️ PostgreSQL<br/>auth DB)]
-            UserDB[(🗄️ PostgreSQL<br/>user DB)]
-            LinkDB[(🗄️ PostgreSQL<br/>link DB)]
-        end
-    end
-
-    Client -->|HTTP/HTTPS| Ingress
-    Ingress -->|Route /| Gateway
-
-    Gateway -->|HTTP + Secret| AuthSvc
-    Gateway -->|HTTP + Secret| UserSvc
-    Gateway -->|HTTP + Secret| LinkSvc
-
-    AuthSvc -.->|Events| RabbitMQ
-    UserSvc -.->|Events| RabbitMQ
-    LinkSvc -.->|Events| RabbitMQ
-
-    AuthSvc -->|Prisma ORM| AuthDB
-    UserSvc -->|Prisma ORM| UserDB
-    LinkSvc -->|Prisma ORM| LinkDB
-
-    style Client fill:#e1f5ff
-    style Ingress fill:#fff4e1
-    style Gateway fill:#ffe1f5
-    style AuthSvc fill:#e1ffe1
-    style UserSvc fill:#e1ffe1
-    style LinkSvc fill:#e1ffe1
-    style RabbitMQ fill:#ffe1e1
-    style AuthDB fill:#f0f0f0
-    style UserDB fill:#f0f0f0
-    style LinkDB fill:#f0f0f0
-```
-
-### 1.2 Сетевая топология
+### 1.1 Сетевая топология
 
 ```mermaid
 graph TB
@@ -128,7 +66,7 @@ graph TB
     style LinkDB fill:#f0f0f0
 ```
 
-### 1.3 Схема маршрутизации через Ingress к API-Gateway
+### 1.2 Схема маршрутизации через Ingress к API-Gateway
 
 ```mermaid
 graph TB
@@ -424,17 +362,17 @@ sequenceDiagram
 
     alt Has guest UUID
         Auth->>UserSvc: findByUUIDPublic(guestUuid)
-        UserSvc-->>Auth: Guest {id: 10, type: Guest}
+        UserSvc-->>Auth: Guest {id, type: Guest}
 
         Note over Auth: Merge guest data into user
 
         Auth->>UserSvc: Update guest userStats<br/>Merge into user stats
         UserSvc-->>Auth: Stats merged
 
-        Auth->>RabbitMQ: Publish Event<br/>USER_ACCOUNTS_MERGED<br/>{guestId: 10, userId: 5}
+        Auth->>RabbitMQ: Publish Event<br/>USER_ACCOUNTS_MERGED<br/>{guestId, userId}
 
         RabbitMQ->>LinkSvc: Consume Event
-        LinkSvc->>LinkSvc: Transfer all links<br/>from guestId=10 to userId=5
+        LinkSvc->>LinkSvc: Transfer all links<br/>from guestId to userId
         LinkSvc-->>RabbitMQ: ACK
 
         Auth->>UserSvc: Delete guest BaseUser
@@ -484,34 +422,30 @@ sequenceDiagram
     participant LinkSvc as Link Service
     participant GeoIP as GeoIP Service
     participant LinkDB as Link DB
+    participant RabbitMQ
 
-    Visitor->>Gateway: GET /l/abc12345<br/>Headers: {User-Agent, IP}
+    Visitor->>Gateway: GET /l/abc123<br/>Headers: {User-Agent, IP}
 
-    Gateway->>LinkSvc: getRedirectLink(shortLink)<br/>+ API_GATEWAY_SECRET
+    Gateway->>LinkSvc: GET /links/redirect/abc123<br/>API_GATEWAY_SECRET
 
-    LinkSvc->>LinkDB: SELECT Link WHERE shortLink = ?
-    LinkDB-->>LinkSvc: Link {id: 100, baseLink: "https://example.com"}
+    LinkSvc->>LinkDB: SELECT Link
+    LinkDB-->>LinkSvc: Link {id, baseLink}
 
-    LinkSvc->>LinkDB: SELECT LinkStats WHERE linkId = 100
-    LinkDB-->>LinkSvc: LinkStats {id: 200}
+    LinkSvc->>RabbitMQ: Publish Event<br/>LINK_REDIRECT<br/>{linkId, userAgent, ip}
 
-    par Increment counter
-        LinkSvc->>LinkDB: UPDATE LinkStats<br/>SET redirectsCount = redirectsCount + 1<br/>WHERE id = 200
+    LinkSvc-->>Gateway: {baseLink: "https://example.com"}
+    par handle event
+        RabbitMQ-->>LinkSvc: LINK_REDIRECT event<br/>{linkId, userAgent, ip}
+        LinkSvc->>LinkDB: UPDATE LinkStats<br/>redirectsCount++
     and Parse User-Agent
         LinkSvc->>LinkSvc: Parse User-Agent<br/>(browser, os, device, isMobile)
     and Resolve GeoIP
         LinkSvc->>GeoIP: getCountryByIp(ip)
-        GeoIP-->>LinkSvc: {country: "RU"}
+        GeoIP-->>LinkSvc: {country}
     end
 
-    LinkSvc->>LinkDB: INSERT LinkRedirect<br/>{linkStatsId: 200, ip, browser, os, country}
-    LinkDB-->>LinkSvc: Analytics saved
-
-    LinkSvc-->>Gateway: {baseLink: "https://example.com"}
+    LinkSvc->>LinkDB: UPDATE LinkRedirect<br/>{ip, browser, os, country}
     Gateway-->>Visitor: 302 Redirect<br/>Location: https://example.com
-
-    Visitor->>Gateway: Follow redirect
-    Gateway-->>Visitor: External website content
 ```
 
 ---
@@ -656,9 +590,9 @@ sequenceDiagram
 
 ---
 
-## 8. CI/CD Pipeline
+## 7. CI/CD Pipeline
 
-### 8.1 GitHub Actions Workflow
+### 7.1 GitHub Actions Workflow
 
 ```mermaid
 graph TB
@@ -712,7 +646,7 @@ graph TB
     style Merge fill:#fff4e1
 ```
 
-### 8.2 Docker Build Pipeline
+### 7.2 Docker Build Pipeline
 
 ```mermaid
 sequenceDiagram
@@ -744,19 +678,3 @@ sequenceDiagram
     Kind->>Kind: Create pods, services, ingress
     Kind-->>GHA: Deployment ready
 ```
-
-## Заключение
-
-Данные диаграммы покрывают все ключевые аспекты микросервисной архитектуры проекта URL Shortener:
-
-✅ **Архитектура:** Общая структура, компоненты, сетевая топология  
-✅ **Развертывание:** Docker Compose, Kubernetes  
-✅ **Аутентификация:** JWT, гостевой режим, миграция аккаунтов  
-✅ **Функционал:** Создание ссылок, редиректы, статистика  
-✅ **События:** RabbitMQ, асинхронная коммуникация  
-✅ **Базы данных:** ERD для 3 PostgreSQL инстансов  
-✅ **CI/CD:** GitHub Actions, автоматическое развертывание  
-✅ **Kubernetes:** Service Discovery, HPA, Rolling Updates  
-✅ **Сессии:** Многоустройственная аутентификация, управление токенами
-
-Все диаграммы в формате Mermaid можно рендерить в GitHub, VS Code (с расширением), или любом Markdown редакторе с поддержкой Mermaid.
