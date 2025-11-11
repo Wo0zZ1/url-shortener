@@ -594,59 +594,31 @@ sequenceDiagram
 
 ### 7.1 GitHub Actions Workflow
 
-```mermaid
-graph TB
-    Start([Push to main]) --> Checkout[Checkout Code<br/>with submodules]
-    Checkout --> Setup[Setup Environment<br/>Node.js, Docker]
+````mermaid
+graph TD
+    Start([Push to main]) --> Job1[Job 1: Run Tests<br/>Matrix: 4 services in parallel]
 
-    Setup --> Parallel{Parallel Build}
+    Job1 -->|Success| Job2[Job 2: Build & Push Images<br/>Matrix: 4 Docker images in parallel]
+    Job1 -->|Failure| Failed([❌ Pipeline Failed])
 
-    Parallel --> Gateway[API Gateway]
-    Parallel --> Auth[Auth Service]
-    Parallel --> User[User Service]
-    Parallel --> Link[Link Service]
+    Job2 -->|Success| Job3[Job 3: Deploy to Kubernetes]
+    Job2 -->|Failure| Failed
 
-    Gateway --> GW_Install[yarn install<br/>--frozen-lockfile]
-    Auth --> AS_Install[yarn install<br/>--frozen-lockfile]
-    User --> US_Install[yarn install<br/>--frozen-lockfile]
-    Link --> LS_Install[yarn install<br/>--frozen-lockfile]
+    Job3 --> K8s_1[Create Kind Cluster]
+    K8s_1 --> K8s_2[Apply Namespace & Secrets]
+    K8s_2 --> K8s_3[Deploy Databases & RabbitMQ]
+    K8s_3 --> K8s_4[Deploy Microservices & Ingress]
 
-    GW_Install --> GW_Test[yarn test]
-    AS_Install --> AS_Test[yarn test]
-    US_Install --> US_Test[yarn test]
-    LS_Install --> LS_Test[yarn test]
-
-    GW_Test --> GW_Build[docker build<br/>-t ghcr.io/.../api-gateway]
-    AS_Test --> AS_Build[docker build<br/>-t ghcr.io/.../auth-service]
-    US_Test --> US_Build[docker build<br/>-t ghcr.io/.../user-service]
-    LS_Test --> LS_Build[docker build<br/>-t ghcr.io/.../link-service]
-
-    GW_Build --> GW_Push[docker push]
-    AS_Build --> AS_Push[docker push]
-    US_Build --> US_Push[docker push]
-    LS_Build --> LS_Push[docker push]
-
-    GW_Push --> Merge{All pushed?}
-    AS_Push --> Merge
-    US_Push --> Merge
-    LS_Push --> Merge
-
-    Merge --> K8s_Setup[Create Kind Cluster]
-    K8s_Setup --> K8s_Apply[kubectl apply<br/>-f k8s -R]
-    K8s_Apply --> K8s_Wait[Wait for pods ready<br/>timeout: 180s]
-
-    K8s_Wait --> Success{Success?}
-    Success -->|Yes| End([✅ Deployment Complete])
-    Success -->|No| Failed([❌ Deployment Failed])
+    K8s_4 -->|Success| End([✅ Deployment Complete])
+    K8s_4 -->|Failure| Failed
 
     style Start fill:#e1f5ff
+    style Job1 fill:#fff4e1
+    style Job2 fill:#fff4e1
+    style Job3 fill:#fff4e1
     style End fill:#e1ffe1
     style Failed fill:#ffe1e1
-    style Parallel fill:#fff4e1
-    style Merge fill:#fff4e1
-```
-
-### 7.2 Docker Build Pipeline
+```### 7.2 Docker Build Pipeline
 
 ```mermaid
 sequenceDiagram
@@ -677,4 +649,4 @@ sequenceDiagram
 
     Kind->>Kind: Create pods, services, ingress
     Kind-->>GHA: Deployment ready
-```
+````
