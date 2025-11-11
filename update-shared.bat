@@ -26,9 +26,3 @@ echo [4/4] Updating link-service...
 cd link-service
 call yarn upgrade @wo0zz1/url-shortener-shared --latest
 cd ..
-
-echo.
-echo ====================================
-echo Done! Now restart containers:
-echo docker-compose -f docker-compose.dev.yml restart
-echo ====================================

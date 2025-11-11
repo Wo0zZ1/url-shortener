@@ -11,9 +11,42 @@ env:
   KUBE_NAMESPACE: url-shortener
 
 jobs:
-  build-and-deploy:
+  # Job 1: Тестирование кода
+  test:
+    name: Run Tests
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [api-gateway, user-service, auth-service, link-service]
+    steps:
+      - name: Checkout repository with submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "yarn"
+          cache-dependency-path: ${{ matrix.service }}/yarn.lock
+
+      - name: Install dependencies
+        working-directory: ./${{ matrix.service }}
+        run: yarn --frozen-lockfile
+
+      - name: Run tests
+        working-directory: ./${{ matrix.service }}
+        run: yarn test
+
+  # Job 2: Сборка и публикация Docker образов
+  build:
+    name: Build & Push Images
+    runs-on: ubuntu-latest
+    needs: test
+    strategy:
+      matrix:
+        service: [api-gateway, user-service, auth-service, link-service]
     steps:
       # --- 1. Checkout репозитория ---
       - name: Checkout repository with submodules
@@ -21,11 +54,10 @@ jobs:
         with:
           submodules: recursive
 
-      # --- 2. Устанавливаем owner в нижнем регистре ---
       - name: Set lowercase owner
         run: echo "IMAGE_PREFIX=${GITHUB_REPOSITORY_OWNER,,}" >> $GITHUB_ENV
 
-      # --- 3. Аутентификация в GitHub Container Registry ---
+      # --- 2. Аутентификация в GitHub Container Registry ---
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -33,51 +65,113 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # --- 4. Сборка и пуш образов для всех сервисов ---
-      - name: Build & Push Docker images
+      # --- 3. Сборка и пуш образов для всех сервисов ---
+      - name: Build and push ${{ matrix.service }}
+        working-directory: ./${{ matrix.service }}
         run: |
-          services=("api-gateway" "user-service" "auth-service" "link-service")
-          for service in "${services[@]}"; do
-            echo "🔧 Building $service..."
-            cd ./${service}
-            yarn --frozen-lockfile
-            yarn test
-            docker build -t $REGISTRY/${IMAGE_PREFIX}/${service}:latest .
-            docker push $REGISTRY/${IMAGE_PREFIX}/${service}:latest
-            cd ..
-          done
+          echo "🔧 Building ${{ matrix.service }}..."
+          docker build -t $REGISTRY/${IMAGE_PREFIX}/${{ matrix.service }}:latest .
+          docker push $REGISTRY/${IMAGE_PREFIX}/${{ matrix.service }}:latest
 
-      # --- 5. Поднимаем временный Kubernetes-кластер ---
-      - name: Create Kubernetes cluster
+  # Job 3: Развертывание в Kubernetes
+  deploy:
+    name: Deploy to Kubernetes
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set lowercase owner
+        run: echo "IMAGE_PREFIX=${GITHUB_REPOSITORY_OWNER,,}" >> $GITHUB_ENV
+
+      - name: Create Kubernetes cluster (Kind)
         uses: helm/kind-action@v1
         with:
           cluster_name: url-shortener-ci
           wait: 60s
 
-      # --- 6. Установка kubectl ---
       - name: Set up kubectl
         uses: azure/setup-kubectl@v4
         with:
           version: "latest"
 
-      # --- 7. Проверяем подключение ---
-      - name: Verify cluster
-        run: kubectl cluster-info
-
-      # --- 8. Применение манифестов ---
-      - name: Apply Kubernetes manifests
+      - name: Verify cluster connection
         run: |
-          kubectl apply -f k8s/namespace.yaml
-          kubectl apply -R -f k8s/
+          kubectl cluster-info
+          kubectl get nodes
 
-      # --- 9. Проверка статуса ---
-      - name: Wait for pods to be ready
-        run: |
-          echo "⏳ Waiting for pods to be ready..."
-          kubectl wait --for=condition=Ready pods --all -n $KUBE_NAMESPACE --timeout=180s
+      - name: Apply namespace
+        run: kubectl apply -f k8s/namespace.yaml
 
-      - name: Check deployment status
+      - name: Apply ConfigMaps and Secrets
+        run: kubectl apply -f k8s/configmap-common.yaml
+
+      - name: Apply Database deployments
         run: |
+          kubectl apply -f k8s/auth-service/postgres.yaml
+          kubectl apply -f k8s/user-service/postgres.yaml
+          kubectl apply -f k8s/link-service/postgres.yaml
+
+      - name: Wait for databases to be ready
+        run: |
+          echo "⏳ Waiting for PostgreSQL databases..."
+          kubectl wait --for=condition=Ready pods -l app=postgres-auth -n $KUBE_NAMESPACE --timeout=180s || true
+          kubectl wait --for=condition=Ready pods -l app=postgres-user -n $KUBE_NAMESPACE --timeout=180s || true
+          kubectl wait --for=condition=Ready pods -l app=postgres-link -n $KUBE_NAMESPACE --timeout=180s || true
+
+          echo "⏳ Giving databases extra time to initialize..."
+          sleep 30
+
+      - name: Apply RabbitMQ deployment
+        run: kubectl apply -f k8s/rabbitmq/
+
+      - name: Wait for RabbitMQ to be ready
+        run: |
+          echo "⏳ Waiting for RabbitMQ..."
+          kubectl wait --for=condition=Ready pods -l app=rabbitmq -n $KUBE_NAMESPACE --timeout=180s || true
+          sleep 20
+
+      - name: Apply application services
+        run: |
+          kubectl apply -f k8s/auth-service/deployment.yaml
+          kubectl apply -f k8s/auth-service/service.yaml
+          kubectl apply -f k8s/user-service/deployment.yaml
+          kubectl apply -f k8s/user-service/service.yaml
+          kubectl apply -f k8s/link-service/deployment.yaml
+          kubectl apply -f k8s/link-service/service.yaml
+          kubectl apply -f k8s/api-gateway/deployment.yaml
+          kubectl apply -f k8s/api-gateway/service.yaml
+
+      - name: Wait for application services
+        run: |
+          echo "⏳ Waiting for application pods..."
+          kubectl wait --for=condition=Ready pods -l app=auth-service -n $KUBE_NAMESPACE --timeout=180s
+          kubectl wait --for=condition=Ready pods -l app=user-service -n $KUBE_NAMESPACE --timeout=180s
+          kubectl wait --for=condition=Ready pods -l app=link-service -n $KUBE_NAMESPACE --timeout=180s
+          kubectl wait --for=condition=Ready pods -l app=api-gateway -n $KUBE_NAMESPACE --timeout=180s
+
+      - name: Apply Ingress
+        run: kubectl apply -f k8s/api-gateway/ingress.yaml
+
+      - name: Deployment summary
+        run: |
+          echo "✅ Deployment completed!"
+          echo ""
+          echo "📊 Pods status:"
           kubectl get pods -n $KUBE_NAMESPACE
+          echo ""
+          echo "🌐 Services:"
           kubectl get svc -n $KUBE_NAMESPACE
+          echo ""
+          echo "🚪 Ingress:"
           kubectl get ingress -n $KUBE_NAMESPACE
+
+      - name: Check pod logs on failure
+        if: failure()
+        run: |
+          echo "❌ Deployment failed. Checking pod logs..."
+          kubectl get pods -n $KUBE_NAMESPACE
+          echo ""
+          echo "📋 Describing failed pods:"
+          kubectl describe pods -n $KUBE_NAMESPACE | grep -A 10 "Warning\|Error" || true
